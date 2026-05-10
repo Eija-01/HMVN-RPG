@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HMVN RPG - CP1</title>
+  <!-- 
+    CHECKPOINT NAME: CP1
+    STATUS: STABLE 
+    FEATURES: Container Ratio, Linear Movement, Fixed Character Scale, Center Locked.
+  -->
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      overflow: hidden;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #111; /* Warna luar kontainer */
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      width: 100vw;
+    }
+
+    /* Pembungkus utama kontainer permainan */
+    #gameContainer {
+      position: relative;
+      background-color: #000;
+      overflow: hidden;
+      box-shadow: 0 0 50px rgba(0,0,0,0.8);
+      border: 2px solid #333;
+      /* Default Fullscreen pada awal muat */
+      width: 100vw;
+      height: 100vh;
+      transition: width 0.3s ease, height 0.3s ease;
+    }
+
+    #gameArea {
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      top: 0;
+      left: 0;
+      background-position: center;
+      background-repeat: no-repeat;
+      transition: none; 
+    }
+
+    #player {
+      position: absolute;
+      /* Karakter tetap berada di tengah kontainer */
+      width: 210px;
+      height: 210px;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      
+      background-repeat: no-repeat;
+      background-position: center;
+      background-size: contain; 
+      image-rendering: pixelated;
+      pointer-events: none;
+      z-index: 10;
+      will-change: width, height;
+    }
+
+    #preloader {
+      position: absolute;
+      width: 0;
+      height: 0;
+      overflow: hidden;
+      z-index: -1;
+      visibility: hidden;
+    }
+
+    /* UI tetap melayang di atas segalanya */
+    #ui {
+      position: fixed;
+      top: 15px;
+      left: 15px;
+      z-index: 999;
+      width: 280px;
+      background: rgba(0, 0, 0, 0.85);
+      color: white;
+      border-radius: 12px;
+      overflow: hidden;
+      backdrop-filter: blur(8px);
+      box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+      border: 1px solid rgba(255,255,255,0.1);
+      transition: width 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), 
+                  height 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      user-select: none;
+    }
+
+    #uiHeader {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 15px;
+      background: rgba(255, 255, 255, 0.1);
+      cursor: move;
+    }
+
+    #uiHeader h2 {
+      font-size: 15px;
+      font-weight: 600;
+      pointer-events: none;
+    }
+
+    #toggleBtn {
+      width: 28px;
+      height: 28px;
+      border: none;
+      border-radius: 6px;
+      background: #00cc88;
+      color: white;
+      cursor: pointer;
+      font-size: 16px;
+      font-weight: bold;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #uiContent {
+      padding: 15px;
+      max-height: 80vh;
+      overflow-y: auto;
+    }
+
+    #ui.minimized {
+      width: 50px;
+      height: 50px;
+      border-radius: 25px;
+    }
+
+    .minimized #uiHeader h2, .minimized #uiContent {
+      display: none;
+    }
+
+    .minimized #uiHeader {
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      justify-content: center;
+      background: transparent;
+    }
+
+    .minimized #toggleBtn {
+      width: 100%;
+      height: 100%;
+      border-radius: 0;
+    }
+
+    .small-info {
+      font-size: 11px;
+      opacity: 0.7;
+      line-height: 1.5;
+      margin-bottom: 12px;
+      padding: 8px;
+      background: rgba(255,255,255,0.05);
+      border-radius: 6px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 5px;
+      margin-top: 10px;
+      font-size: 12px;
+      color: #ccc;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    select {
+      width: 100%;
+      padding: 8px;
+      border-radius: 6px;
+      border: 1px solid #444;
+      background: #222;
+      color: #00ffaa;
+      outline: none;
+      font-weight: bold;
+      cursor: pointer;
+      font-size: 13px;
+      margin-bottom: 10px;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      accent-color: #00cc88;
+      cursor: pointer;
+    }
+
+    .sliderValue {
+      color: #00ffaa;
+      font-weight: bold;
+      float: right;
+    }
+
+    #currentMapDisplay {
+      display: block;
+      margin-top: 2px;
+      font-style: italic;
+      font-size: 10px;
+      color: #888;
+      margin-bottom: 10px;
+    }
+  </style>
+</head>
+<body>
+
+<div id="preloader"></div>
+
+<div id="gameContainer">
+  <div id="gameArea"></div>
+  <div id="player"></div>
+</div>
+
+<div id="ui">
+  <div id="uiHeader">
+    <h2>⚙ Pengaturan</h2>
+    <button id="toggleBtn">−</button>
+  </div>
+
+  <div id="uiContent">
+    <div class="small-info">
+      Pilih rasio kontainer untuk membatasi area jelajah. Gunakan tombol arah untuk berjalan.
+    </div>
+
+    <label>Rasio Kontainer</label>
+    <select id="ratioSelect" onchange="changeRatio()">
+      <option value="full">Layar Penuh (Responsive)</option>
+      <option value="1280x720">1280 x 720 (HD)</option>
+      <option value="640x480">640 x 480 (SD)</option>
+    </select>
+
+    <label>Lokasi Map</label>
+    <select id="mapSelect" onchange="changeMap()">
+      <option value="Area%20Pohon%20Gunung.jpg|3e906e09b8c0e621227f0314491a74122d56d786">Area Pohon Gunung</option>
+      <option value="Halaman%20Rumah%20Jack.png|3e906e09b8c0e621227f0314491a74122d56d786">Halaman Rumah Jack</option>
+      <option value="Dermaga.png|3e906e09b8c0e621227f0314491a74122d56d786">Dermaga</option>
+      <option value="Bogeng%20City.jpg|3e906e09b8c0e621227f0314491a74122d56d786">Bogeng City</option>
+      <option value="Alun%20Alun%20Desa%20Heaven%20Town.jpg|182629973fed24484f533523b104356067d400f9">Alun Alun Desa Heaven Town</option>
+    </select>
+    <span id="currentMapDisplay">Berkas: Area Pohon Gunung.jpg</span>
+
+    <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.1); margin: 15px 0;">
+
+    <label>
+      Zoom (Skala):
+      <span class="sliderValue" id="bgScaleValue">50%</span>
+    </label>
+    <input type="range" id="bgScale" min="-50" max="50" value="0">
+  </div>
+</div>
+
+<script>
+  // ==========================================
+  // KONFIGURASI SKALA & KECEPATAN (CP1)
+  // ==========================================
+  const baseCharSize = 130; 
+  let speed = 2; 
+
+  const gameContainer = document.getElementById("gameContainer");
+  const gameArea = document.getElementById("gameArea");
+  const player = document.getElementById("player");
+  const ui = document.getElementById("ui");
+  const toggleBtn = document.getElementById("toggleBtn");
+  const ratioSelect = document.getElementById("ratioSelect");
+  const mapSelect = document.getElementById("mapSelect");
+  const mapDisplay = document.getElementById("currentMapDisplay");
+  const bgScale = document.getElementById("bgScale");
+  const bgScaleValue = document.getElementById("bgScaleValue");
+  const preloader = document.getElementById("preloader");
+
+  // State
+  let worldX = 0;
+  let worldY = 0;
+  const angle = 25; 
+  let currentNaturalWidth = 1920; 
+
+  let activeKey = null;
+  let lastDirection = "down";
+  let currentImgUrl = ""; 
+
+  // --- AUDIO SFX ---
+  const walkSfxUrl = "https://raw.githubusercontent.com/Eija-01/HMVN-RPG/76a9aa1c9e9a6cca42d6c1b17376c2d1f76ddded/Assets/SFX/SFX%20Jalan%20Jack.mp4";
+  const walkSfx = new Audio(walkSfxUrl);
+  walkSfx.loop = true;
+
+  const repoRawBase = "https://raw.githubusercontent.com/Eija-01/HMVN-RPG/";
+  const charCommit = "d2b8dd9a8d76bbf134f47b795b18b85d644fcf2d";
+  const charBase = `${repoRawBase}${charCommit}/Assets/Main%20Char/Jack/`;
+
+  const assetPaths = {
+    walk: {
+      up: charBase + "Jack-Walk-Y2.gif",
+      down: charBase + "Jack-Walk-X1.gif",
+      left: charBase + "Jack-Walk-Y1.gif",
+      right: charBase + "Jack-Walk-X2.gif"
+    },
+    idle: {
+      up: charBase + "IdleY-2.png",
+      down: charBase + "IdleX-1.png",
+      left: charBase + "IdleY-1.png",
+      right: charBase + "IdleX-2.png"
+    }
+  };
+
+  function preloadAssets() {
+    const allUrls = [...Object.values(assetPaths.walk), ...Object.values(assetPaths.idle)];
+    allUrls.forEach(url => {
+      const img = document.createElement('img');
+      img.src = url;
+      preloader.appendChild(img);
+    });
+  }
+
+  function setPlayerImage(url) {
+    if (currentImgUrl !== url) {
+      player.style.backgroundImage = `url('${url}')`;
+      currentImgUrl = url;
+    }
+  }
+
+  // --- RASIO KONTAINER ---
+  function changeRatio() {
+    const val = ratioSelect.value;
+    if (val === "full") {
+      gameContainer.style.width = "100vw";
+      gameContainer.style.height = "100vh";
+      gameContainer.style.borderRadius = "0";
+    } else {
+      const parts = val.split('x');
+      gameContainer.style.width = parts[0] + "px";
+      gameContainer.style.height = parts[1] + "px";
+      gameContainer.style.borderRadius = "8px";
+    }
+    // Update visual setelah ukuran kontainer berubah
+    updateVisuals();
+  }
+
+  // --- DRAGGABLE UI ---
+  let isDragging = false;
+  let hasMoved = false;
+  let startXUI, startYUI, mouseStartX, mouseStartY;
+
+  ui.addEventListener('mousedown', (e) => {
+    if (e.target.tagName === 'SELECT' || e.target.tagName === 'INPUT') return;
+    isDragging = true;
+    hasMoved = false;
+    mouseStartX = e.clientX; mouseStartY = e.clientY;
+    startXUI = ui.offsetLeft; startYUI = ui.offsetTop;
+    ui.style.transition = 'none'; 
+  });
+
+  document.addEventListener('mousemove', (e) => {
+    if (!isDragging) return;
+    const dx = e.clientX - mouseStartX;
+    const dy = e.clientY - mouseStartY;
+    if (Math.abs(dx) > 5 || Math.abs(dy) > 5) hasMoved = true;
+    if (hasMoved) {
+      ui.style.left = (startXUI + dx) + 'px';
+      ui.style.top = (startYUI + dy) + 'px';
+    }
+  });
+
+  document.addEventListener('mouseup', (e) => {
+    if (isDragging) {
+      if (!hasMoved && (e.target === toggleBtn || ui.classList.contains("minimized"))) toggleUI();
+      isDragging = false;
+      ui.style.transition = 'width 0.3s, height 0.3s'; 
+    }
+  });
+
+  function toggleUI() {
+    ui.classList.toggle("minimized");
+    toggleBtn.innerText = ui.classList.contains("minimized") ? "⚙" : "−";
+  }
+
+  // --- VISUAL UPDATE ---
+  bgScale.addEventListener("input", updateVisuals);
+
+  function updateVisuals() {
+    const zoomFactor = (100 + parseInt(bgScale.value)) / 100;
+    bgScaleValue.innerText = Math.round(zoomFactor * 100) + "%";
+    
+    const currentMapWidth = currentNaturalWidth * zoomFactor;
+    gameArea.style.backgroundSize = `${currentMapWidth}px`;
+
+    const currentSize = baseCharSize * zoomFactor;
+    player.style.width = `${currentSize}px`;
+    player.style.height = `${currentSize}px`;
+    
+    // Background position tetap 50% (tengah kontainer) dikurangi pergeseran dunia
+    gameArea.style.backgroundPosition = `calc(50% - ${worldX * zoomFactor}px) calc(50% - ${worldY * zoomFactor}px)`;
+  }
+
+  function changeMap() {
+    const selectedData = mapSelect.value.split('|');
+    const finalUrl = `${repoRawBase}${selectedData[1]}/Assets/Maps/${selectedData[0]}`;
+    const tempImg = new Image();
+    tempImg.onload = function() {
+      currentNaturalWidth = tempImg.naturalWidth;
+      gameArea.style.backgroundImage = `url('${finalUrl}')`;
+      mapDisplay.innerText = `Berkas: ${decodeURIComponent(selectedData[0])}`;
+      updateVisuals();
+    };
+    tempImg.src = finalUrl;
+  }
+
+  // --- KONTROL JALAN ---
+  document.addEventListener("keydown", (e) => {
+    if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)) {
+      activeKey = e.key;
+      if (walkSfx.paused) walkSfx.play().catch(() => {});
+    }
+  });
+
+  document.addEventListener("keyup", (e) => {
+    if (e.key === activeKey) {
+      activeKey = null;
+      setPlayerImage(assetPaths.idle[lastDirection]);
+      walkSfx.pause();
+      walkSfx.currentTime = 0;
+    }
+  });
+
+  function gameLoop() {
+    if (activeKey) {
+      const rad = angle * Math.PI / 180;
+      const moveX = Math.cos(rad) * speed;
+      const moveY = Math.sin(rad) * speed;
+
+      switch(activeKey) {
+        case "ArrowUp": worldX += moveX; worldY -= moveY; lastDirection = "up"; setPlayerImage(assetPaths.walk.up); break;
+        case "ArrowDown": worldX -= moveX; worldY += moveY; lastDirection = "down"; setPlayerImage(assetPaths.walk.down); break;
+        case "ArrowLeft": worldX -= moveX; worldY -= moveY; lastDirection = "left"; setPlayerImage(assetPaths.walk.left); break;
+        case "ArrowRight": worldX += moveX; worldY += moveY; lastDirection = "right"; setPlayerImage(assetPaths.walk.right); break;
+      }
+      updateVisuals();
+    }
+    requestAnimationFrame(gameLoop);
+  }
+
+  window.onload = () => {
+    preloadAssets();
+    setPlayerImage(assetPaths.idle.down);
+    changeRatio(); // Set ratio awal
+    changeMap();
+    gameLoop();
+  };
+</script>
+
+</body>
+</html>
