@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>HMVN RPG - CP 2 Mobile Functional</title>
+  <!-- 
+    CHECKPOINT NAME: CP 2 + Mobile Controls (Fully Functional)
+    STATUS: STABLE 
+    FEATURES: Container Ratio, Linear Movement, Map Clamping, Running Mechanic, Dynamic SFX, Cross-Platform Controls.
+  -->
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+
+    body {
+      overflow: hidden;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #111;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      width: 100vw;
+      touch-action: none;
+    }
+
+    #gameContainer {
+      position: relative;
+      background-color: #000;
+      overflow: hidden;
+      box-shadow: 0 0 50px rgba(0,0,0,0.8);
+      border: 2px solid #333;
+      width: 100vw;
+      height: 100vh;
+      transition: width 0.3s ease, height 0.3s ease;
+    }
+
+    #gameArea {
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      top: 0;
+      left: 0;
+      background-position: center;
+      background-repeat: no-repeat;
+      transition: none; 
+    }
+
+    #player {
+      position: absolute;
+      width: 210px;
+      height: 210px;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      background-repeat: no-repeat;
+      background-position: center;
+      background-size: contain; 
+      image-rendering: pixelated;
+      pointer-events: none;
+      z-index: 10;
+      will-change: width, height, left, top;
+    }
+
+    /* KONTROL MOBILE */
+    .mobile-ui {
+      position: fixed;
+      bottom: 30px;
+      left: 0;
+      right: 0;
+      padding: 0 30px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      z-index: 1000;
+      pointer-events: none;
+    }
+
+    @media (min-width: 1025px) {
+      .mobile-ui { display: flex; } 
+    }
+
+    .btn-group {
+      pointer-events: auto;
+    }
+
+    /* Tombol X (Kiri) */
+    .action-btn {
+      width: 80px;
+      height: 80px;
+      background: rgba(255, 255, 255, 0.2);
+      border: 3px solid rgba(255, 255, 255, 0.4);
+      border-radius: 50%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      color: white;
+      font-weight: bold;
+      font-size: 24px;
+      backdrop-filter: blur(5px);
+      box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+      cursor: pointer;
+      transition: transform 0.1s;
+    }
+
+    .action-btn:active {
+      background: rgba(255, 0, 0, 0.4);
+      transform: scale(0.9);
+    }
+
+    /* D-PAD (Kanan) */
+    .dpad {
+      display: grid;
+      grid-template-columns: repeat(3, 60px);
+      grid-template-rows: repeat(3, 60px);
+      gap: 5px;
+    }
+
+    .dpad-btn {
+      width: 60px;
+      height: 60px;
+      background: rgba(255, 255, 255, 0.2);
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      border-radius: 12px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      color: white;
+      backdrop-filter: blur(5px);
+      cursor: pointer;
+      transition: background 0.1s;
+    }
+
+    .dpad-btn:active {
+      background: rgba(0, 204, 136, 0.5);
+    }
+
+    .dpad-up { grid-column: 2; grid-row: 1; }
+    .dpad-left { grid-column: 1; grid-row: 2; }
+    .dpad-right { grid-column: 3; grid-row: 2; }
+    .dpad-down { grid-column: 2; grid-row: 3; }
+
+    #preloader {
+      position: absolute;
+      width: 0;
+      height: 0;
+      overflow: hidden;
+      z-index: -1;
+      visibility: hidden;
+    }
+
+    /* PANEL PENGATURAN */
+    #ui {
+      position: fixed;
+      top: 15px;
+      left: 15px;
+      z-index: 999;
+      width: 280px;
+      background: rgba(0, 0, 0, 0.85);
+      color: white;
+      border-radius: 12px;
+      overflow: hidden;
+      backdrop-filter: blur(8px);
+      box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+      border: 1px solid rgba(255,255,255,0.1);
+      user-select: none;
+    }
+
+    #uiHeader {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 15px;
+      background: rgba(255, 255, 255, 0.1);
+      cursor: default;
+    }
+
+    #toggleBtn {
+      width: 28px;
+      height: 28px;
+      border: none;
+      border-radius: 6px;
+      background: #00cc88;
+      color: white;
+      cursor: pointer;
+      font-weight: bold;
+    }
+
+    #uiContent {
+      padding: 15px;
+      max-height: 80vh;
+      overflow-y: auto;
+    }
+
+    #ui.minimized { width: 50px; height: 50px; border-radius: 25px; }
+    .minimized #uiHeader h2, .minimized #uiContent { display: none; }
+    .minimized #uiHeader { padding: 0; width: 100%; height: 100%; justify-content: center; background: transparent; }
+    .minimized #toggleBtn { width: 100%; height: 100%; border-radius: 0; }
+
+    select {
+      width: 100%;
+      padding: 8px;
+      border-radius: 6px;
+      border: 1px solid #444;
+      background: #222;
+      color: #00ffaa;
+      font-weight: bold;
+      margin-bottom: 10px;
+      cursor: pointer;
+    }
+
+    #currentMapDisplay {
+      display: block;
+      font-style: italic;
+      font-size: 10px;
+      color: #888;
+    }
+  </style>
+</head>
+<body>
+
+<div id="preloader"></div>
+
+<div id="gameContainer">
+  <div id="gameArea"></div>
+  <div id="player"></div>
+</div>
+
+<!-- Antarmuka Mobile -->
+<div class="mobile-ui">
+  <!-- Tombol X di Kiri -->
+  <div class="btn-group">
+    <div class="action-btn" id="touchX">X</div>
+  </div>
+  
+  <!-- Tombol Arah di Kanan -->
+  <div class="btn-group dpad">
+    <div class="dpad-btn dpad-up" id="touchUp">▲</div>
+    <div class="dpad-btn dpad-left" id="touchLeft">◀</div>
+    <div class="dpad-btn dpad-right" id="touchRight">▶</div>
+    <div class="dpad-btn dpad-down" id="touchDown">▼</div>
+  </div>
+</div>
+
+<div id="ui">
+  <div id="uiHeader">
+    <h2 style="font-size:15px">⚙ Pengaturan</h2>
+    <button id="toggleBtn">−</button>
+  </div>
+  <div id="uiContent">
+    <label style="font-size:12px;color:#ccc;display:block;margin-bottom:5px">RASIO KONTAINER</label>
+    <select id="ratioSelect" onchange="changeRatio()">
+      <option value="full">Layar Penuh</option>
+      <option value="1280x720">1280 x 720</option>
+      <option value="640x480">640 x 480</option>
+    </select>
+
+    <label style="font-size:12px;color:#ccc;display:block;margin-bottom:5px">LOKASI MAP</label>
+    <select id="mapSelect" onchange="changeMap()">
+      <option value="Area%20Pohon%20Gunung.jpg|3e906e09b8c0e621227f0314491a74122d56d786">Area Pohon Gunung</option>
+      <option value="Halaman%20Rumah%20Jack.png|3e906e09b8c0e621227f0314491a74122d56d786">Halaman Rumah Jack</option>
+      <option value="Dermaga.png|3e906e09b8c0e621227f0314491a74122d56d786">Dermaga</option>
+      <option value="Bogeng%20City.jpg|3e906e09b8c0e621227f0314491a74122d56d786">Bogeng City</option>
+      <option value="Alun%20Alun%20Desa%20Heaven%20Town.jpg|182629973fed24484f533523b104356067d400f9">Alun Alun Desa Heaven Town</option>
+    </select>
+    <span id="currentMapDisplay">Berkas: Area Pohon Gunung.jpg</span>
+  </div>
+</div>
+
+<script>
+  // ==========================================
+  // KONFIGURASI SKALA & KECEPATAN
+  // ==========================================
+  const baseCharSize = 130; 
+  let walkSpeed = 3; 
+  let runSpeed = 6; 
+  const FIXED_ZOOM = 1;
+
+  const gameContainer = document.getElementById("gameContainer");
+  const gameArea = document.getElementById("gameArea");
+  const player = document.getElementById("player");
+  const ui = document.getElementById("ui");
+  const toggleBtn = document.getElementById("toggleBtn");
+  const ratioSelect = document.getElementById("ratioSelect");
+  const mapSelect = document.getElementById("mapSelect");
+  const mapDisplay = document.getElementById("currentMapDisplay");
+  const preloader = document.getElementById("preloader");
+
+  // State Input
+  let activeKey = null;
+  let isXPressed = false;
+  let lastDirection = "down";
+  
+  // State Posisi Dunia
+  let worldX = 0;
+  let worldY = 0;
+  const angle = 25; 
+  let currentNaturalWidth = 1920; 
+  let currentNaturalHeight = 1080; 
+  let currentImgUrl = ""; 
+
+  // --- AUDIO SFX ---
+  const repoRawBase = "https://raw.githubusercontent.com/Eija-01/HMVN-RPG/";
+  const sfxBase = `${repoRawBase}main/Assets/SFX/`;
+  const walkSfx = new Audio(`${sfxBase}SFX%20Jalan%20Jack.mp3`);
+  const runSfx = new Audio(`${sfxBase}SFX%20Lari%20Jack.mp3`);
+  walkSfx.loop = true;
+  runSfx.loop = true;
+
+  const charCommit = "d2b8dd9a8d76bbf134f47b795b18b85d644fcf2d";
+  const charBase = `${repoRawBase}${charCommit}/Assets/Main%20Char/Jack/`;
+  const runBase = `${repoRawBase}main/Assets/Main%20Char/Jack/Run/`;
+
+  const assetPaths = {
+    walk: {
+      up: charBase + "Jack-Walk-Y2.gif",
+      down: charBase + "Jack-Walk-X1.gif",
+      left: charBase + "Jack-Walk-Y1.gif",
+      right: charBase + "Jack-Walk-X2.gif"
+    },
+    run: {
+      left: runBase + "Jack-Run-Y.gif",
+      up: runBase + "Jack-Run-Y.gif", 
+      down: runBase + "Jack-Run-X.gif",
+      right: runBase + "Jack-Run-X.gif" 
+    },
+    idle: {
+      up: charBase + "IdleY-2.png",
+      down: charBase + "IdleX-1.png",
+      left: charBase + "IdleY-1.png",
+      right: charBase + "IdleX-2.png"
+    }
+  };
+
+  function preloadAssets() {
+    const allUrls = [...Object.values(assetPaths.walk), ...Object.values(assetPaths.run), ...Object.values(assetPaths.idle)];
+    allUrls.forEach(url => {
+      const img = document.createElement('img');
+      img.src = url;
+      preloader.appendChild(img);
+    });
+  }
+
+  function setPlayerImage(url, mirror = false) {
+    if (currentImgUrl !== url) {
+      player.style.backgroundImage = `url('${url}')`;
+      currentImgUrl = url;
+    }
+    player.style.transform = `translate(-50%, -50%) ${mirror ? 'scaleX(-1)' : 'scaleX(1)'}`;
+  }
+
+  function handleSfx(isMoving, isRunning) {
+    if (isMoving) {
+      if (isRunning) {
+        if (runSfx.paused) runSfx.play().catch(() => {});
+        walkSfx.pause();
+        walkSfx.currentTime = 0;
+      } else {
+        if (walkSfx.paused) walkSfx.play().catch(() => {});
+        runSfx.pause();
+        runSfx.currentTime = 0;
+      }
+    } else {
+      walkSfx.pause(); walkSfx.currentTime = 0;
+      runSfx.pause(); runSfx.currentTime = 0;
+    }
+  }
+
+  // --- KONTROL TOMBOL (MOUSE & SENTUH) ---
+  function setupTouchControls() {
+    const touchMap = {
+      'touchUp': 'arrowup',
+      'touchDown': 'arrowdown',
+      'touchLeft': 'arrowleft',
+      'touchRight': 'arrowright'
+    };
+
+    Object.keys(touchMap).forEach(id => {
+      const el = document.getElementById(id);
+      el.addEventListener('pointerdown', (e) => { 
+        e.preventDefault(); 
+        activeKey = touchMap[id]; 
+      });
+      
+      const release = (e) => { 
+        e.preventDefault(); 
+        if (activeKey === touchMap[id]) activeKey = null; 
+        stopCheck(); 
+      };
+      
+      el.addEventListener('pointerup', release);
+      el.addEventListener('pointerleave', release);
+    });
+
+    const xBtn = document.getElementById('touchX');
+    xBtn.addEventListener('pointerdown', (e) => { 
+      e.preventDefault(); 
+      isXPressed = true; 
+    });
+    
+    const xRelease = (e) => { 
+      e.preventDefault(); 
+      isXPressed = false; 
+      stopCheck(); 
+    };
+    xBtn.addEventListener('pointerup', xRelease);
+    xBtn.addEventListener('pointerleave', xRelease);
+  }
+
+  function stopCheck() {
+    if (!activeKey && !isXPressed) {
+      setPlayerImage(assetPaths.idle[lastDirection], false);
+      handleSfx(false, false);
+    }
+  }
+
+  // --- LOGIKA PERMAINAN ---
+  function changeRatio() {
+    const val = ratioSelect.value;
+    if (val === "full") {
+      gameContainer.style.width = "100vw";
+      gameContainer.style.height = "100vh";
+      gameContainer.style.borderRadius = "0";
+    } else {
+      const parts = val.split('x');
+      gameContainer.style.width = parts[0] + "px";
+      gameContainer.style.height = parts[1] + "px";
+      gameContainer.style.borderRadius = "8px";
+    }
+    updateVisuals();
+  }
+
+  function updateVisuals() {
+    const contW = gameContainer.clientWidth;
+    const contH = gameContainer.clientHeight;
+    const mapW = currentNaturalWidth * FIXED_ZOOM;
+    const mapH = currentNaturalHeight * FIXED_ZOOM;
+    
+    const limitX = Math.max(0, (mapW - contW) / 2);
+    const limitY = Math.max(0, (mapH - contH) / 2);
+    
+    const desiredX = worldX * FIXED_ZOOM;
+    const desiredY = worldY * FIXED_ZOOM;
+    
+    const clampedX = Math.max(-limitX, Math.min(limitX, desiredX));
+    const clampedY = Math.max(-limitY, Math.min(limitY, desiredY));
+    
+    const playerScreenX = desiredX - clampedX;
+    const playerScreenY = desiredY - clampedY;
+
+    gameArea.style.backgroundSize = `${mapW}px`;
+    gameArea.style.backgroundPosition = `calc(50% - ${clampedX}px) calc(50% - ${clampedY}px)`;
+    
+    player.style.width = `${baseCharSize * FIXED_ZOOM}px`;
+    player.style.height = `${baseCharSize * FIXED_ZOOM}px`;
+    player.style.left = `calc(50% + ${playerScreenX}px)`;
+    player.style.top = `calc(50% + ${playerScreenY}px)`;
+  }
+
+  function changeMap() {
+    const selectedData = mapSelect.value.split('|');
+    const finalUrl = `${repoRawBase}${selectedData[1]}/Assets/Maps/${selectedData[0]}`;
+    const tempImg = new Image();
+    tempImg.onload = function() {
+      currentNaturalWidth = tempImg.naturalWidth;
+      currentNaturalHeight = tempImg.naturalHeight;
+      gameArea.style.backgroundImage = `url('${finalUrl}')`;
+      mapDisplay.innerText = `Berkas: ${decodeURIComponent(selectedData[0])}`;
+      updateVisuals();
+    };
+    tempImg.src = finalUrl;
+  }
+
+  // --- KONTROL KEYBOARD ---
+  document.addEventListener("keydown", (e) => {
+    const key = e.key.toLowerCase();
+    if (["arrowup", "arrowdown", "arrowleft", "arrowright", "w", "a", "s", "d"].includes(key)) {
+      if (key === "w") activeKey = "arrowup";
+      else if (key === "s") activeKey = "arrowdown";
+      else if (key === "a") activeKey = "arrowleft";
+      else if (key === "d") activeKey = "arrowright";
+      else activeKey = key;
+    }
+    if (key === "x" || key === "shift") isXPressed = true;
+  });
+
+  document.addEventListener("keyup", (e) => {
+    const key = e.key.toLowerCase();
+    const normalized = (key === "w") ? "arrowup" : (key === "s") ? "arrowdown" : (key === "a") ? "arrowleft" : (key === "d") ? "arrowright" : key;
+    
+    if (normalized === activeKey) activeKey = null;
+    if (key === "x" || key === "shift") isXPressed = false;
+    stopCheck();
+  });
+
+  function gameLoop() {
+    // Tombol X memicu pergerakan di arah terakhir (CP2)
+    let moveDir = activeKey || (isXPressed ? lastDirection : null);
+    
+    if (moveDir) {
+      const rad = angle * Math.PI / 180;
+      const currentSpeed = isXPressed ? runSpeed : walkSpeed;
+      const moveX = Math.cos(rad) * currentSpeed;
+      const moveY = Math.sin(rad) * currentSpeed;
+      
+      handleSfx(true, isXPressed);
+
+      switch(moveDir) {
+        case "arrowup": 
+        case "up":
+          worldX += moveX; worldY -= moveY; lastDirection = "up"; 
+          setPlayerImage(isXPressed ? assetPaths.run.up : assetPaths.walk.up, isXPressed);
+          break;
+        case "arrowdown": 
+        case "down":
+          worldX -= moveX; worldY += moveY; lastDirection = "down"; 
+          setPlayerImage(isXPressed ? assetPaths.run.down : assetPaths.walk.down, false);
+          break;
+        case "arrowleft": 
+        case "left":
+          worldX -= moveX; worldY -= moveY; lastDirection = "left"; 
+          setPlayerImage(isXPressed ? assetPaths.run.left : assetPaths.walk.left, false);
+          break;
+        case "arrowright": 
+        case "right":
+          worldX += moveX; worldY += moveY; lastDirection = "right"; 
+          setPlayerImage(isXPressed ? assetPaths.run.right : assetPaths.walk.right, isXPressed);
+          break;
+      }
+      updateVisuals();
+    }
+    requestAnimationFrame(gameLoop);
+  }
+
+  toggleBtn.onclick = () => {
+    ui.classList.toggle("minimized");
+    toggleBtn.innerText = ui.classList.contains("minimized") ? "⚙" : "−";
+  };
+
+  window.onload = () => {
+    preloadAssets();
+    setPlayerImage(assetPaths.idle.down);
+    setupTouchControls();
+    changeRatio(); 
+    changeMap();
+    gameLoop();
+  };
+</script>
+
+</body>
+</html>
